@@ -8,9 +8,9 @@ import seaborn as sns
 # Load the data
 ####################################################
 data = pd.read_csv(
-    '../Data/TRAINING_SET_GSE62944_subsample_log2TPM.csv', index_col=0, header=0)  # can also use larger dataset with more genes
+    'C:\\Users\\ajq2af\\OneDrive - University of Virginia\\Documents\\UVA\\BME 2315\\Module-4-Cancer-Imburgia-Abed\\data\\TRAINING_SET_GSE62944_subsample_log2TPM.csv', index_col=0, header=0)  # can also use larger dataset with more genes
 metadata_df = pd.read_csv(
-    '../Data/TRAINING_SET_GSE62944_metadata.csv', index_col=0, header=0)
+    'C:\\Users\\ajq2af\\OneDrive - University of Virginia\\Documents\\UVA\\BME 2315\\Module-4-Cancer-Imburgia-Abed\\data\\TRAINING_SET_GSE62944_metadata.csv', index_col=0, header=0)
 print(data.head())
 
 # %%
@@ -98,5 +98,14 @@ plt.show()
 BRCA_merged[['MYC', 'EGFR']].plot.box()
 plt.title("MYC and EGFR Expression in BRCA Samples")
 plt.show()
+
+# %%
+import pandas as pd
+
+# Read TXT file (adjust delimiter as needed)
+df = pd.read_csv("C:\\Users\\ajq2af\\OneDrive - University of Virginia\\Documents\\UVA\\BME 2315\\Module-4-Cancer-Imburgia-Abed\\code\\Menyhart_JPA_CancerHallmarks_core.txt", delimiter="\t")  # "\t" for tab, "," for comma
+
+# Save as CSV
+df.to_csv("C:\\Users\\ajq2af\\OneDrive - University of Virginia\\Documents\\UVA\\BME 2315\\Module-4-Cancer-Imburgia-Abed\\code\\data.csv", index=False)
 
 # %%
