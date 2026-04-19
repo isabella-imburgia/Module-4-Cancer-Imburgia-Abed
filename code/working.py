@@ -97,6 +97,9 @@ df = UCEC_gene_data.T.copy()  # shape: samples × genes
 
 # Merge histologic_diagnosis from metadata into df
 df = df.join(metadata_df[['histologic_diagnosis']], how='left')
+# ── Remove samples with missing histologic_diagnosis ─────────────────────────  <-- ADD HERE
+df = df.dropna(subset=['histologic_diagnosis'])
+df = df[df['histologic_diagnosis'].str.strip() != '']
 
 # ── PCA ───────────────────────────────────────────────────────────────────────
 X = df[gene_list].values  # samples × genes, numeric only
