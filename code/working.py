@@ -91,26 +91,32 @@ UCEC_gene_data = UCEC_data.loc[gene_list]  # uses validated gene_list (safe)
 #plt.tight_layout()
 #plt.show()
 
+# ── Prepare samples × genes matrix and attach metadata ───────────────────────
+# Transpose so rows = samples, columns = genes
+df = UCEC_gene_data.T.copy()  # shape: samples × genes
 
+# Merge histologic_diagnosis from metadata into df
+df = df.join(metadata_df[['histologic_diagnosis']], how='left')
 
-
-df = pd.DataFrame(UCEC_gene_data)
-g = sns.PairGrid(df, hue = "cluster", palette = "Set2")
-g.map(sns.scatterplot)
-
-X = UCEC_gene_data.data
-y = UCEC_gene_data.target
+# ── PCA ───────────────────────────────────────────────────────────────────────
+X = df[gene_list].values  # samples × genes, numeric only
 
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X)
+
+explained = pca.explained_variance_ratio_ * 100  # percentage
+
 plt.figure(figsize=(8, 6))
-sns.scatterplot(x=X_pca[:, 0],
-                y=X_pca[:, 1],
-                hue=UCEC_gene_data.target,
-                palette="Set2",
-                s=100)
-plt.title("PCA of UCEC Gene List")
-plt.xlabel("Principal Component 1")
-plt.ylabel("Principal Component 2")
-plt.legend(title="Species")
+sns.scatterplot(
+    x=X_pca[:, 0],
+    y=X_pca[:, 1],
+    hue=df['histologic_diagnosis'],
+    palette="Set2",
+    s=100
+)
+plt.title("PCA of UCEC Gene Expression")
+plt.xlabel(f"PC1 ({explained[0]:.1f}% variance)")
+plt.ylabel(f"PC2 ({explained[1]:.1f}% variance)")
+plt.legend(title="Histologic Diagnosis", bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
 plt.show()
