@@ -186,3 +186,5 @@ plt.show()
 print(f"Clusters found: {len(set(y_dbscan)) - (1 if -1 in y_dbscan else 0)}")
 print(f"Noise points (label = -1): {(y_dbscan == -1).sum()}")
 
+
+# %%
