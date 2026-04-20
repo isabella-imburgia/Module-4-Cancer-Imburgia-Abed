@@ -167,4 +167,22 @@ plt.ylabel(f"PC2 ({explained[1]:.1f}% variance)")
 plt.title("KMeans Clustering of UCEC Gene Expression")
 plt.tight_layout()
 plt.show()
+# DBSCAN
 # %%
+from sklearn.cluster import DBSCAN
+
+# Run on PCA coordinates (2D) instead of raw X
+dbscan = DBSCAN(eps=1.5, min_samples=5)
+y_dbscan = dbscan.fit_predict(X_pca)   # <-- X_pca not X
+
+plt.figure(figsize=(8, 6))
+plt.scatter(X_pca[:, 0], X_pca[:, 1], c=y_dbscan, cmap="Set2", s=100)
+plt.xlabel(f"PC1 ({explained[0]:.1f}% variance)")
+plt.ylabel(f"PC2 ({explained[1]:.1f}% variance)")
+plt.title("DBSCAN Clustering of UCEC Gene Expression")
+plt.tight_layout()
+plt.show()
+
+print(f"Clusters found: {len(set(y_dbscan)) - (1 if -1 in y_dbscan else 0)}")
+print(f"Noise points (label = -1): {(y_dbscan == -1).sum()}")
+
