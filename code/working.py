@@ -188,44 +188,63 @@ print(f"Noise points (label = -1): {(y_dbscan == -1).sum()}")
 
 ## main learning model
 # %%
+# %%
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.datasets import load_breast_cancer
+from sklearn.preprocessing import LabelEncoder
 
 # %%
-# Load the breast cancer dataset
-cancer = load_breast_cancer(as_frame=True)
-X = cancer.data
-y = cancer.target
-print(cancer.DESCR)
+# Use your already-loaded UCEC merged data
+# X = gene expression features, y = histologic diagnosis labels
+
+# Filter to only Endometrioid and Serous (logistic regression needs binary labels)
+binary_df = UCEC_merged[
+    UCEC_merged['histologic_diagnosis'].isin([
+        'Endometrioid endometrial adenocarcinoma',
+        'Serous endometrial adenocarcinoma'
+    ])
+].copy()
+
+# Encode labels: Endometrioid = 0, Serous = 1
+le = LabelEncoder()
+y = le.fit_transform(binary_df['histologic_diagnosis'])
+y_label = list(binary_df['histologic_diagnosis'])
+
+print(f"Samples — Endometrioid: {(y==0).sum()}, Serous: {(y==1).sum()}")
 
 # %%
-y_label = [{0: "malignant", 1: "benign"}[i] for i in y]
-sns.scatterplot(x=X["mean radius"],
-                y=X["mean smoothness"],
-                hue=y_label,
-                palette="Set1")
-# %%
-feature_1 = "mean radius"
-feature_2 = "mean smoothness"
-X = X[[feature_1, feature_2]].values
+# Scatter plot: TP53 vs AKT1 colored by histologic diagnosis
+sns.scatterplot(
+    x=binary_df["TP53"],
+    y=binary_df["AKT1"],
+    hue=y_label,
+    palette="Set1"
+)
+plt.xlabel("TP53 Expression (log2 TPM)")
+plt.ylabel("AKT1 Expression (log2 TPM)")
+plt.title("TP53 vs AKT1 in UCEC Subtypes")
+plt.tight_layout()
+plt.show()
 
 # %%
-# Logistic regression
+feature_1 = "TP53"
+feature_2 = "AKT1"
+X = binary_df[[feature_1, feature_2]].values
 
-# BUILD A MODEL: 
+# %%
+# Logistic Regression
+# BUILD A MODEL:
 model = LogisticRegression(penalty=None).fit(X, y)
 
-# PREDICT AND EVALUATE: 
+# PREDICT AND EVALUATE:
 model.predict_proba(X)
-print(model.score(X, y))
+print(f"Logistic Regression Accuracy: {model.score(X, y):.3f}")
 
 # %% Plotting decision boundary
-
 # Create meshgrid
 x_min, x_max = X[:, 0].min(), X[:, 0].max()
 y_min, y_max = X[:, 1].min(), X[:, 1].max()
@@ -237,28 +256,59 @@ Z = model.decision_function(np.c_[xx.ravel(), yy.ravel()])
 Z = Z.reshape(xx.shape)
 
 # Plot
-plt.contourf(xx, yy, Z, levels=50, cmap="RdBu", alpha=0.6)  # background
-plt.contour(xx, yy, Z, levels=[0], colors='black',
-            linewidths=2)  # decision boundary
-sns.scatterplot(x=X[:, 0],
-                y=X[:, 1],
-                hue=y_label,
-                edgecolors='k',
-                palette="Set1",
-                alpha=0.8)
+plt.contourf(xx, yy, Z, levels=50, cmap="RdBu", alpha=0.6)
+plt.contour(xx, yy, Z, levels=[0], colors='black', linewidths=2)
+sns.scatterplot(
+    x=X[:, 0],
+    y=X[:, 1],
+    hue=y_label,
+    edgecolors='k',
+    palette="Set1",
+    alpha=0.8
+)
 plt.legend()
-plt.xlabel(feature_1)
-plt.ylabel(feature_2)
-plt.title("Logistic Regression Decision Boundary")
+plt.xlabel("TP53 Expression (log2 TPM)")
+plt.ylabel("AKT1 Expression (log2 TPM)")
+plt.title("Logistic Regression Decision Boundary\nEndometrioid vs Serous (UCEC)")
+plt.tight_layout()
 plt.show()
 
 # %% DECISION TREE CLASSIFIER
-# BUILD A MODEL: 
+# BUILD A MODEL:
 dt_model = DecisionTreeClassifier(max_depth=3).fit(X, y)
-# PREDICT AND EVALUATE: 
-print(dt_model.score(X, y))
+
+# PREDICT AND EVALUATE:
+print(f"Decision Tree Accuracy: {dt_model.score(X, y):.3f}")
+
 # %% PLOT DECISION TREE
-plot_tree(dt_model, feature_names=[
-          feature_1, feature_2], class_names=cancer.target_names, filled=True)
-# %% TRY TO BUILD A BETTER CLASSIFIER BY PICKING BETTER FEATURES!
-# to do this, you can loop over all pairs of features in the dataset
+plt.figure(figsize=(12, 6))
+plot_tree(
+    dt_model,
+    feature_names=[feature_1, feature_2],
+    class_names=["Endometrioid", "Serous"],
+    filled=True
+)
+plt.title("Decision Tree: Classifying UCEC Subtypes by TP53 and AKT1")
+plt.tight_layout()
+plt.show()
+
+# %% TRY BETTER FEATURES — loop over gene pairs to find best classifier
+from itertools import combinations
+from sklearn.model_selection import cross_val_score
+
+best_score = 0
+best_pair = None
+
+for gene1, gene2 in combinations(gene_list, 2):
+    if gene1 in binary_df.columns and gene2 in binary_df.columns:
+        X_pair = binary_df[[gene1, gene2]].values
+        score = cross_val_score(
+            LogisticRegression(penalty=None, max_iter=1000),
+            X_pair, y, cv=5
+        ).mean()
+        if score > best_score:
+            best_score = score
+            best_pair = (gene1, gene2)
+
+print(f"Best gene pair: {best_pair[0]} and {best_pair[1]}")
+print(f"Cross-validated accuracy: {best_score:.3f}")
