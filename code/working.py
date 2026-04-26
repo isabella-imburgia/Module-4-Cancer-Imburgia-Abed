@@ -8,11 +8,13 @@ import seaborn as sns
 from sklearn.decomposition import PCA
 
 data = pd.read_csv(
-    '/Users/ajq2af/OneDrive - University of Virginia\Documents/UVA/BME 2315/Module-4-Cancer-Imburgia-Abed/data/TRAINING_SET_GSE62944_subsample_log2TPM.csv',
+    '/Users/zain/Documents/GitHub/Module-4-Cancer-Imburgia-Abed/data/TRAINING_SET_GSE62944_subsample_log2TPM.csv',
+    #'/Users/ajq2af/OneDrive - University of Virginia\Documents/UVA/BME 2315/Module-4-Cancer-Imburgia-Abed/data/TRAINING_SET_GSE62944_subsample_log2TPM.csv',
     index_col=0, header=0
 )
 metadata_df = pd.read_csv(
-    '/Users/ajq2af/OneDrive - University of Virginia/Documents/UVA/BME 2315/Module-4-Cancer-Imburgia-Abed/data/TRAINING_SET_GSE62944_metadata.csv',
+    '/Users/zain/Documents/GitHub/Module-4-Cancer-Imburgia-Abed/data/TRAINING_SET_GSE62944_metadata.csv',
+    #'/Users/ajq2af/OneDrive - University of Virginia/Documents/UVA/BME 2315/Module-4-Cancer-Imburgia-Abed/data/TRAINING_SET_GSE62944_metadata.csv',
     index_col=0, header=0
 )
 
@@ -201,7 +203,7 @@ from sklearn.preprocessing import LabelEncoder
 # Use your already-loaded UCEC merged data
 # X = gene expression features, y = histologic diagnosis labels
 
-# Filter to only Endometrioid and Serous (logistic regression needs binary labels)
+# ── Filter to binary classification (Endometrioid vs Serous) ──────────────────
 binary_df = UCEC_merged[
     UCEC_merged['histologic_diagnosis'].isin([
         'Endometrioid endometrial adenocarcinoma',
@@ -209,89 +211,105 @@ binary_df = UCEC_merged[
     ])
 ].copy()
 
+# Only keep genes that are actually present in binary_df columns
+available_genes = [g for g in gene_list if g in binary_df.columns]
+
 # Encode labels: Endometrioid = 0, Serous = 1
 le = LabelEncoder()
 y = le.fit_transform(binary_df['histologic_diagnosis'])
 y_label = list(binary_df['histologic_diagnosis'])
-
 print(f"Samples — Endometrioid: {(y==0).sum()}, Serous: {(y==1).sum()}")
 
-# %%
-# Scatter plot: TP53 vs AKT1 colored by histologic diagnosis
+# ── Feature matrix: all 100 genes ─────────────────────────────────────────────
+X_all = binary_df[available_genes].values
+
+# ── PCA for visualization (replaces TP53 vs AKT1 scatter) ────────────────────
+pca_vis = PCA(n_components=2)
+X_vis = pca_vis.fit_transform(X_all)
+explained_vis = pca_vis.explained_variance_ratio_ * 100
+
+plt.figure(figsize=(8, 6))
 sns.scatterplot(
-    x=binary_df["TP53"],
-    y=binary_df["AKT1"],
+    x=X_vis[:, 0],
+    y=X_vis[:, 1],
     hue=y_label,
-    palette="Set1"
+    palette="Set1",
+    s=100,
+    edgecolors='k',
+    alpha=0.8
 )
-plt.xlabel("TP53 Expression (log2 TPM)")
-plt.ylabel("AKT1 Expression (log2 TPM)")
-plt.title("TP53 vs AKT1 in UCEC Subtypes")
+plt.xlabel(f"PC1 ({explained_vis[0]:.1f}% variance)")
+plt.ylabel(f"PC2 ({explained_vis[1]:.1f}% variance)")
+plt.title("PCA of All 100 Genes: Endometrioid vs Serous (UCEC)")
+plt.legend(title="Histologic Diagnosis", bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 plt.show()
 
-# %%
-feature_1 = "TP53"
-feature_2 = "AKT1"
-X = binary_df[[feature_1, feature_2]].values
+# ── Logistic Regression on all 100 genes ──────────────────────────────────────
+from sklearn.preprocessing import StandardScaler
 
-# %%
-# Logistic Regression
-# BUILD A MODEL:
-model = LogisticRegression(penalty=None).fit(X, y)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_all)
 
-# PREDICT AND EVALUATE:
-model.predict_proba(X)
-print(f"Logistic Regression Accuracy: {model.score(X, y):.3f}")
+lr_model = LogisticRegression(penalty=None, max_iter=1000).fit(X_scaled, y)
+print(f"Logistic Regression Accuracy (all genes): {lr_model.score(X_scaled, y):.3f}")
 
-# %% Plotting decision boundary
-# Create meshgrid
-x_min, x_max = X[:, 0].min(), X[:, 0].max()
-y_min, y_max = X[:, 1].min(), X[:, 1].max()
-xx, yy = np.meshgrid(np.linspace(x_min, x_max, 300),
-                     np.linspace(y_min, y_max, 300))
+# Plot decision boundary projected onto PC1/PC2
+xx, yy = np.meshgrid(
+    np.linspace(X_vis[:, 0].min() - 1, X_vis[:, 0].max() + 1, 300),
+    np.linspace(X_vis[:, 1].min() - 1, X_vis[:, 1].max() + 1, 300)
+)
 
-# Compute decision function over the grid
-Z = model.decision_function(np.c_[xx.ravel(), yy.ravel()])
-Z = Z.reshape(xx.shape)
+# Project grid back to gene space via inverse PCA, then scale, then predict
+grid_gene_space = pca_vis.inverse_transform(np.c_[xx.ravel(), yy.ravel()])
+grid_scaled = scaler.transform(grid_gene_space)
+Z = lr_model.decision_function(grid_scaled).reshape(xx.shape)
 
-# Plot
+plt.figure(figsize=(8, 6))
 plt.contourf(xx, yy, Z, levels=50, cmap="RdBu", alpha=0.6)
 plt.contour(xx, yy, Z, levels=[0], colors='black', linewidths=2)
 sns.scatterplot(
-    x=X[:, 0],
-    y=X[:, 1],
+    x=X_vis[:, 0],
+    y=X_vis[:, 1],
     hue=y_label,
     edgecolors='k',
     palette="Set1",
     alpha=0.8
 )
-plt.legend()
-plt.xlabel("TP53 Expression (log2 TPM)")
-plt.ylabel("AKT1 Expression (log2 TPM)")
-plt.title("Logistic Regression Decision Boundary\nEndometrioid vs Serous (UCEC)")
+plt.xlabel(f"PC1 ({explained_vis[0]:.1f}% variance)")
+plt.ylabel(f"PC2 ({explained_vis[1]:.1f}% variance)")
+plt.title("Logistic Regression Decision Boundary (All 100 Genes)\nEndometrioid vs Serous — projected onto PCA")
+plt.legend(title="Histologic Diagnosis", bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 plt.show()
 
-# %% DECISION TREE CLASSIFIER
-# BUILD A MODEL:
-dt_model = DecisionTreeClassifier(max_depth=3).fit(X, y)
+# ── Decision Tree on all 100 genes ────────────────────────────────────────────
+dt_model = DecisionTreeClassifier(max_depth=3).fit(X_all, y)
+print(f"Decision Tree Accuracy (all genes): {dt_model.score(X_all, y):.3f}")
 
-# PREDICT AND EVALUATE:
-print(f"Decision Tree Accuracy: {dt_model.score(X, y):.3f}")
-
-# %% PLOT DECISION TREE
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(16, 6))
 plot_tree(
     dt_model,
-    feature_names=[feature_1, feature_2],
-    class_names=["Endometrioid", "Serous"],
-    filled=True
+    feature_names=available_genes,
+    class_names=le.classes_,
+    filled=True,
+    fontsize=9
 )
-plt.title("Decision Tree: Classifying UCEC Subtypes by TP53 and AKT1")
+plt.title("Decision Tree: Classifying UCEC Subtypes (All 100 Genes)")
 plt.tight_layout()
 plt.show()
 
+# ── Top features by importance (Decision Tree) ────────────────────────────────
+importances = pd.Series(dt_model.feature_importances_, index=available_genes)
+top_features = importances.sort_values(ascending=False).head(15)
+
+plt.figure(figsize=(8, 5))
+top_features.plot(kind='bar', color='steelblue')
+plt.title("Top 15 Gene Importances (Decision Tree)")
+plt.ylabel("Feature Importance")
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
 # %% TRY BETTER FEATURES — loop over gene pairs to find best classifier
 from itertools import combinations
 from sklearn.model_selection import cross_val_score
